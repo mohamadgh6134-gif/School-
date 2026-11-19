@@ -1,0 +1,1804 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سامانه ارزشیابی ماهانه | دبستان علم و پویش</title>
+    
+    <!-- فونت وزیرمتن -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- آیکون‌های Lucide -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- کتابخانه اکسل SheetJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- کتابخانه‌های Firebase (Compat برای اجرا در فایل تکی بدون بیلد) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Vazirmatn', 'sans-serif'],
+                    },
+                    colors: {
+                        kidBlue: '#E0F2FE',
+                        kidBlueDark: '#0284C7',
+                        kidYellow: '#FEF9C3',
+                        kidYellowDark: '#CA8A04',
+                        kidGreen: '#DCFCE7',
+                        kidGreenDark: '#16A34A',
+                        kidPink: '#FCE7F3',
+                        kidPinkDark: '#DB2777',
+                        kidPurple: '#F3E8FF',
+                        kidPurpleDark: '#9333EA',
+                        kidOrange: '#FFEDD5',
+                        kidOrangeDark: '#EA580C',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Vazirmatn', sans-serif;
+            background: linear-gradient(135deg, #f0f9ff 0%, #fefce8 50%, #fdf2f8 100%);
+            min-height: 100vh;
+            color: #1e293b;
+        }
+
+        /* انیمیشن‌های ملایم کودکانه */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-6px); }
+        }
+        .animate-float {
+            animation: float 3.5s ease-in-out infinite;
+        }
+
+        .card-kid {
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card-kid:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.08);
+        }
+
+        /* اسکرول‌بار زیبا */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* استایل اختصاصی چاپ کارنامه */
+        @media print {
+            body {
+                background: #ffffff !important;
+                color: #000000 !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-only {
+                display: block !important;
+            }
+            .print-container {
+                box-shadow: none !important;
+                border: 2px solid #cbd5e1 !important;
+                border-radius: 12px !important;
+                padding: 16px !important;
+                margin: 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+            .grade-card-print {
+                break-inside: avoid;
+                border: 1px solid #cbd5e1 !important;
+                box-shadow: none !important;
+                margin-bottom: 8px !important;
+            }
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-sky-200 selection:text-sky-900">
+
+    <!-- اعلان شناور (Toast Message Box) به جای alert -->
+    <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 w-11/12 max-w-md pointer-events-none no-print"></div>
+
+    <!-- مدال تایید (Custom Confirm Modal) به جای confirm -->
+    <div id="confirm-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border-2 border-slate-100 text-center">
+            <div class="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="alert-circle" class="w-8 h-8"></i>
+            </div>
+            <h3 id="confirm-title" class="text-lg font-extrabold text-slate-800 mb-2">آیا مطمئن هستید؟</h3>
+            <p id="confirm-message" class="text-sm text-slate-600 mb-6">این عملیات قابل بازگشت نیست.</p>
+            <div class="flex gap-3 justify-center">
+                <button id="confirm-cancel-btn" class="flex-1 py-2.5 px-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition">انصراف</button>
+                <button id="confirm-ok-btn" class="flex-1 py-2.5 px-4 rounded-2xl bg-rose-500 hover:bg-rose-600 text-white font-bold shadow-md shadow-rose-200 transition">بله، انجام شود</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- هدر مشترک بالای صفحه (پس از ورود) -->
+    <header id="app-header" class="hidden bg-white/90 backdrop-blur-md border-b-2 border-sky-100 sticky top-0 z-30 no-print">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-400 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-sky-200">
+                    <i data-lucide="graduation-cap" class="w-7 h-7"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black text-slate-800 flex items-center gap-2">
+                        دبستان علم و پویش
+                        <span id="db-status-badge" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700">حالت آزمایشی داخلی</span>
+                    </h1>
+                    <p id="header-subtitle" class="text-xs sm:text-sm text-slate-500 font-medium">سامانه هوشمند ارزشیابی توصیفی ماهانه</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <div id="user-badge" class="hidden sm:flex items-center gap-2 bg-sky-50 border border-sky-200 px-3.5 py-1.5 rounded-2xl">
+                    <span id="user-role-icon" class="text-lg">🎓</span>
+                    <div class="text-right">
+                        <div id="header-user-name" class="text-sm font-bold text-slate-800">کاربر</div>
+                        <div id="header-user-role" class="text-[11px] text-sky-700 font-semibold">نقش</div>
+                    </div>
+                </div>
+                <button onclick="logout()" class="flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 px-4 py-2.5 rounded-2xl font-bold text-sm transition active:scale-95">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                    <span>خروج</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- محتوای اصلی برنامه -->
+    <main class="max-w-6xl mx-auto px-4 py-6">
+
+        <!-- ================= ۱. صفحه ورود (LOGIN VIEW) ================= -->
+        <section id="login-view" class="min-h-[85vh] flex flex-col items-center justify-center py-4">
+            <!-- بنر خوش‌آمدگویی مدرسه -->
+            <div class="text-center mb-6 max-w-lg">
+                <div class="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-br from-amber-300 via-orange-400 to-rose-400 text-white shadow-xl shadow-orange-200/60 mb-4 animate-float">
+                    <span class="text-4xl">🏫</span>
+                </div>
+                <h1 class="text-2xl sm:text-3xl font-black text-slate-800 mb-2">
+                    دبستان هوشمند <span class="text-sky-600">علم و پویش</span>
+                </h1>
+                <p class="text-slate-600 text-sm sm:text-base font-medium">
+                    سامانه مشاهده کارنامه توصیفی ماهانه (پایه‌های چهارم، پنجم و ششم)
+                </p>
+            </div>
+
+            <!-- کارت اصلی ورود -->
+            <div class="bg-white/95 backdrop-blur-md w-full max-w-md rounded-3xl p-6 sm:p-8 shadow-xl border-2 border-sky-100">
+                <!-- انتخاب نقش کاربری -->
+                <div class="grid grid-cols-3 gap-2 p-1.5 bg-slate-100 rounded-2xl mb-6">
+                    <button type="button" onclick="selectLoginRole('student')" id="tab-role-student" class="role-tab py-2.5 px-2 rounded-xl font-extrabold text-xs sm:text-sm flex flex-col items-center gap-1 transition bg-white text-sky-600 shadow-sm">
+                        <span class="text-xl">🎒</span>
+                        <span>دانش‌آموز</span>
+                    </button>
+                    <button type="button" onclick="selectLoginRole('teacher')" id="tab-role-teacher" class="role-tab py-2.5 px-2 rounded-xl font-bold text-xs sm:text-sm flex flex-col items-center gap-1 transition text-slate-600 hover:text-slate-900">
+                        <span class="text-xl">👩‍🏫</span>
+                        <span>معلم</span>
+                    </button>
+                    <button type="button" onclick="selectLoginRole('admin')" id="tab-role-admin" class="role-tab py-2.5 px-2 rounded-xl font-bold text-xs sm:text-sm flex flex-col items-center gap-1 transition text-slate-600 hover:text-slate-900">
+                        <span class="text-xl">🛡️</span>
+                        <span>مدیر / ادمین</span>
+                    </button>
+                </div>
+
+                <!-- فرم ورود -->
+                <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
+                    <div>
+                        <label id="username-label" class="block text-sm font-bold text-slate-700 mb-1.5">نام کاربری (کد ملی دانش‌آموز)</label>
+                        <div class="relative">
+                            <input type="text" id="login-username" required placeholder="مثلاً: 1001" class="w-full pl-4 pr-11 py-3 rounded-2xl border-2 border-slate-200 focus:border-sky-400 focus:ring-4 focus:ring-sky-100 outline-none transition font-semibold text-slate-800 text-left" dir="ltr">
+                            <i data-lucide="user" class="w-5 h-5 text-slate-400 absolute right-3.5 top-3.5"></i>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-1.5">رمز عبور</label>
+                        <div class="relative">
+                            <input type="password" id="login-password" required placeholder="••••••" class="w-full pl-4 pr-11 py-3 rounded-2xl border-2 border-slate-200 focus:border-sky-400 focus:ring-4 focus:ring-sky-100 outline-none transition font-semibold text-slate-800 text-left" dir="ltr">
+                            <i data-lucide="lock" class="w-5 h-5 text-slate-400 absolute right-3.5 top-3.5"></i>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="login-submit-btn" class="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-l from-sky-500 to-indigo-500 hover:from-sky-600 hover:to-indigo-600 text-white font-extrabold text-base shadow-lg shadow-sky-200 transition active:scale-[0.98] flex items-center justify-center gap-2">
+                        <span>ورود به کارنامه من</span>
+                        <i data-lucide="arrow-left" class="w-5 h-5"></i>
+                    </button>
+                </form>
+
+                <!-- دکمه‌های ورود سریع آزمایشی -->
+                <div class="mt-6 pt-5 border-t-2 border-dashed border-slate-200">
+                    <p class="text-xs font-bold text-slate-500 text-center mb-3">✨ ورود سریع آزمایشی (بدون نیاز به تایپ):</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <button type="button" onclick="quickDemoLogin('student')" class="py-2 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-extrabold transition flex items-center justify-center gap-1">
+                            <span>🎒</span> دانش‌آموز نمونه
+                        </button>
+                        <button type="button" onclick="quickDemoLogin('teacher')" class="py-2 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-extrabold transition flex items-center justify-center gap-1">
+                            <span>👩‍🏫</span> معلم نمونه
+                        </button>
+                        <button type="button" onclick="quickDemoLogin('admin')" class="py-2 px-3 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-extrabold transition flex items-center justify-center gap-1">
+                            <span>🛡️</span> پنل ادمین
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= ۲. پنل دانش‌آموز (STUDENT VIEW) ================= -->
+        <section id="student-view" class="hidden space-y-6">
+            <!-- کارت خوش‌آمدگویی کودکانه و انتخاب ماه -->
+            <div class="bg-gradient-to-l from-sky-400 via-blue-500 to-indigo-500 rounded-3xl p-6 text-white shadow-xl shadow-sky-200/70 flex flex-col md:flex-row items-center justify-between gap-4 no-print">
+                <div class="flex items-center gap-4 text-center md:text-right flex-col sm:flex-row">
+                    <div class="w-20 h-20 rounded-3xl bg-white/20 backdrop-blur-md flex items-center justify-center text-5xl shadow-inner">
+                        🌟
+                    </div>
+                    <div>
+                        <div class="inline-block bg-white/20 px-3 py-1 rounded-full text-xs font-bold mb-1">
+                            دبستان علم و پویش • <span id="st-grade-badge">پایه چهارم</span>
+                        </div>
+                        <h2 class="text-2xl sm:text-3xl font-black">سلام <span id="st-welcome-name">دانش‌آموز عزیز</span>! 👋</h2>
+                        <p class="text-sky-100 text-sm mt-1 font-medium">اینجا می‌تونی نتیجه تلاش‌های قشنگت رو در هر ماه ببینی!</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                    <div class="w-full sm:w-48">
+                        <label class="block text-xs font-bold text-sky-100 mb-1">انتخاب ماه کارنامه:</label>
+                        <select id="st-month-select" onchange="renderStudentReport()" class="w-full py-3 px-4 rounded-2xl bg-white text-slate-800 font-extrabold text-sm shadow-md outline-none cursor-pointer">
+                            <!-- گزینه‌های ماه با JS پر می‌شوند -->
+                        </select>
+                    </div>
+                    <button onclick="window.print()" class="w-full sm:w-auto mt-0 sm:mt-5 py-3 px-5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-900 font-extrabold text-sm shadow-lg transition flex items-center justify-center gap-2 active:scale-95">
+                        <i data-lucide="printer" class="w-5 h-5"></i>
+                        <span>چاپ / ذخیره کارنامه</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- باکس قابل چاپ کارنامه -->
+            <div class="print-container bg-white rounded-3xl p-5 sm:p-8 shadow-lg border-2 border-sky-100">
+                <!-- سربرگ رسمی کارنامه (در چاپ و صفحه نمایش دیده می‌شود) -->
+                <div class="border-b-2 border-dashed border-slate-200 pb-5 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-14 h-14 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center text-3xl font-black">
+                            🏫
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-black text-slate-800">کارنامه ارزشیابی توصیفی ماهانه</h3>
+                            <p class="text-sm font-bold text-sky-600">دبستان غیردولتی علم و پویش</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 sm:flex gap-3 text-sm bg-slate-50 p-3 rounded-2xl border border-slate-200 w-full sm:w-auto">
+                        <div class="px-2">
+                            <span class="text-slate-400 text-xs block">نام دانش‌آموز:</span>
+                            <strong id="report-st-name" class="text-slate-800 font-extrabold">-</strong>
+                        </div>
+                        <div class="px-2 border-r border-slate-200">
+                            <span class="text-slate-400 text-xs block">پایه تحصیلی:</span>
+                            <strong id="report-st-grade" class="text-slate-800 font-extrabold">-</strong>
+                        </div>
+                        <div class="px-2 border-r border-slate-200 col-span-2 sm:col-span-1">
+                            <span class="text-slate-400 text-xs block">ماه ارزشیابی:</span>
+                            <strong id="report-st-month" class="text-indigo-600 font-extrabold">-</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- کارت‌های رنگی دروس -->
+                <div id="student-grades-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- کارت‌های درس به صورت پویا ساخته می‌شوند -->
+                </div>
+
+                <!-- پیام خلاصه و تشویقی پایین کارنامه -->
+                <div id="student-summary-box" class="mt-6 p-5 rounded-2xl bg-gradient-to-l from-amber-50 to-yellow-50 border-2 border-amber-200 flex items-center gap-4">
+                    <div class="text-4xl">🏆</div>
+                    <div>
+                        <h4 class="font-extrabold text-amber-900 text-base">پیام تشویقی دبستان علم و پویش:</h4>
+                        <p id="student-summary-text" class="text-sm text-amber-800 mt-1 font-medium">
+                            فرزند عزیزم، تلاش و پشتکار تو در مسیر یادگیری مایه افتخار ماست. با انرژی به مسیرت ادامه بده!
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= ۳. پنل معلم (TEACHER VIEW) ================= -->
+        <section id="teacher-view" class="hidden space-y-6">
+            <!-- بنر خوش‌آمدگویی معلم -->
+            <div class="bg-gradient-to-l from-emerald-500 to-teal-600 rounded-3xl p-6 text-white shadow-lg shadow-emerald-200/60 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-4">
+                    <div class="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center text-4xl">
+                        👩‍🏫
+                    </div>
+                    <div>
+                        <h2 class="text-xl sm:text-2xl font-black">خوش آمدید، <span id="tc-welcome-name">همکار گرامی</span></h2>
+                        <p class="text-emerald-100 text-sm mt-1">پایه، درس و ماه مورد نظر را انتخاب کنید و ارزشیابی دانش‌آموزان را ثبت نمایید.</p>
+                    </div>
+                </div>
+                <div class="bg-white/15 px-4 py-2.5 rounded-2xl text-xs font-bold backdrop-blur-sm">
+                    مقیاس استاندارد: خ.خ (خیلی خوب) • خ (خوب) • ق (قابل قبول) • ن (نیاز به تلاش)
+                </div>
+            </div>
+
+            <!-- فیلترهای انتخاب پایه، درس و ماه -->
+            <div class="bg-white rounded-3xl p-5 shadow-md border-2 border-emerald-100 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-xs font-extrabold text-slate-600 mb-1.5">۱. انتخاب پایه تحصیلی (مجاز برای شما):</label>
+                    <select id="tc-grade-select" onchange="onTeacherGradeChange()" class="w-full py-3 px-4 rounded-2xl border-2 border-slate-200 focus:border-emerald-500 font-bold text-slate-800 outline-none bg-slate-50">
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-extrabold text-slate-600 mb-1.5">۲. انتخاب درس (مجاز برای شما):</label>
+                    <select id="tc-subject-select" onchange="renderTeacherGradingTable()" class="w-full py-3 px-4 rounded-2xl border-2 border-slate-200 focus:border-emerald-500 font-bold text-slate-800 outline-none bg-slate-50">
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-extrabold text-slate-600 mb-1.5">۳. انتخاب ماه ارزشیابی:</label>
+                    <select id="tc-month-select" onchange="renderTeacherGradingTable()" class="w-full py-3 px-4 rounded-2xl border-2 border-slate-200 focus:border-emerald-500 font-bold text-slate-800 outline-none bg-slate-50">
+                    </select>
+                </div>
+            </div>
+
+            <!-- جدول و کارت‌های نمره‌دهی سریع به دانش‌آموزان -->
+            <div class="bg-white rounded-3xl p-5 sm:p-6 shadow-md border-2 border-slate-100">
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-100">
+                    <div>
+                        <h3 id="tc-grading-title" class="text-lg font-black text-slate-800">لیست دانش‌آموزان جهت ثبت ارزشیابی</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">روی سطح ارزشیابی هر دانش‌آموز کلیک کنید و در پایان دکمه «ذخیره تمام نمرات» را بزنید.</p>
+                    </div>
+                    <button onclick="saveAllTeacherGrades()" class="py-3 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm shadow-lg shadow-emerald-200 transition flex items-center gap-2 active:scale-95">
+                        <i data-lucide="save" class="w-5 h-5"></i>
+                        <span>ذخیره تمام نمرات این درس</span>
+                    </button>
+                </div>
+
+                <div id="tc-students-list" class="space-y-4">
+                    <!-- لیست دانش‌آموزان با دکمه‌های سریع خ.خ، خ، ق، ن -->
+                </div>
+
+                <div class="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+                    <button onclick="saveAllTeacherGrades()" class="w-full sm:w-auto py-3.5 px-8 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-base shadow-lg shadow-emerald-200 transition flex items-center justify-center gap-2 active:scale-95">
+                        <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+                        <span>ثبت و ذخیره نهایی نمرات</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= ۴. پنل مدیریت / ادمین (ADMIN VIEW) ================= -->
+        <section id="admin-view" class="hidden space-y-6">
+            <!-- داشبورد آمار سریع -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white rounded-3xl p-5 border-2 border-sky-100 shadow-sm flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center text-2xl">🎒</div>
+                    <div>
+                        <div class="text-xs font-bold text-slate-500">کل دانش‌آموزان</div>
+                        <div id="stat-total-students" class="text-2xl font-black text-slate-800">0</div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-3xl p-5 border-2 border-emerald-100 shadow-sm flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl">👩‍🏫</div>
+                    <div>
+                        <div class="text-xs font-bold text-slate-500">تعداد معلمان</div>
+                        <div id="stat-total-teachers" class="text-2xl font-black text-slate-800">0</div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-3xl p-5 border-2 border-amber-100 shadow-sm flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-2xl">📚</div>
+                    <div>
+                        <div class="text-xs font-bold text-slate-500">پایه‌های فعال</div>
+                        <div class="text-2xl font-black text-slate-800">چهارم، پنجم، ششم</div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-3xl p-5 border-2 border-purple-100 shadow-sm flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center text-2xl">📝</div>
+                    <div>
+                        <div class="text-xs font-bold text-slate-500">نمرات ثبت‌شده</div>
+                        <div id="stat-total-grades" class="text-2xl font-black text-slate-800">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- تب‌های مدیریت ادمین -->
+            <div class="bg-white p-2 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap gap-2">
+                <button onclick="switchAdminTab('students')" id="admin-tab-students" class="admin-nav-btn flex-1 py-3 px-4 rounded-xl font-extrabold text-xs sm:text-sm bg-sky-500 text-white shadow-sm transition flex items-center justify-center gap-2">
+                    <i data-lucide="users" class="w-4 h-4"></i>
+                    <span>مدیریت دانش‌آموزان و اکسل</span>
+                </button>
+                <button onclick="switchAdminTab('teachers')" id="admin-tab-teachers" class="admin-nav-btn flex-1 py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-slate-600 hover:bg-slate-100 transition flex items-center justify-center gap-2">
+                    <i data-lucide="shield-check" class="w-4 h-4"></i>
+                    <span>معلمان و سطوح دسترسی</span>
+                </button>
+                <button onclick="switchAdminTab('subjects')" id="admin-tab-subjects" class="admin-nav-btn flex-1 py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-slate-600 hover:bg-slate-100 transition flex items-center justify-center gap-2">
+                    <i data-lucide="book-open" class="w-4 h-4"></i>
+                    <span>پایه‌ها و دروس</span>
+                </button>
+                <button onclick="switchAdminTab('settings')" id="admin-tab-settings" class="admin-nav-btn flex-1 py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-slate-600 hover:bg-slate-100 transition flex items-center justify-center gap-2">
+                    <i data-lucide="database" class="w-4 h-4"></i>
+                    <span>تنظیمات و اتصال ابری</span>
+                </button>
+            </div>
+
+            <!-- تب ۱: مدیریت دانش‌آموزان -->
+            <div id="admin-panel-students" class="admin-subpanel space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- فرم افزودن تکی دانش‌آموز -->
+                    <div class="bg-white rounded-3xl p-6 shadow-md border-2 border-sky-100">
+                        <h3 class="text-base font-black text-slate-800 mb-4 flex items-center gap-2">
+                            <span class="w-8 h-8 rounded-xl bg-sky-100 text-sky-600 flex items-center justify-center">➕</span>
+                            افزودن تکی دانش‌آموز
+                        </h3>
+                        <form onsubmit="addSingleStudent(event)" class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">نام و نام خانوادگی دانش‌آموز</label>
+                                <input type="text" id="new-st-name" required placeholder="مثلاً: امیرعلی رضایی" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-sky-500 outline-none text-sm font-semibold">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">پایه تحصیلی</label>
+                                <select id="new-st-grade" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-sky-500 outline-none text-sm font-bold bg-white">
+                                    <option value="چهارم">پایه چهارم</option>
+                                    <option value="پنجم">پایه پنجم</option>
+                                    <option value="ششم">پایه ششم</option>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-600 mb-1">نام کاربری (کد ملی)</label>
+                                    <input type="text" id="new-st-user" required placeholder="1005" dir="ltr" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 focus:border-sky-500 outline-none text-sm font-semibold text-left">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-600 mb-1">رمز عبور</label>
+                                    <input type="text" id="new-st-pass" required placeholder="1234" dir="ltr" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 focus:border-sky-500 outline-none text-sm font-semibold text-left">
+                                </div>
+                            </div>
+                            <button type="submit" class="w-full py-3 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-extrabold text-sm shadow-md transition">
+                                ثبت دانش‌آموز
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- ورود گروهی با اکسل -->
+                    <div class="lg:col-span-2 bg-white rounded-3xl p-6 shadow-md border-2 border-emerald-100 flex flex-col justify-between">
+                        <div>
+                            <h3 class="text-base font-black text-slate-800 mb-2 flex items-center gap-2">
+                                <span class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">📊</span>
+                                ورود گروهی دانش‌آموزان با فایل اکسل (.xlsx)
+                            </h3>
+                            <p class="text-xs text-slate-600 leading-relaxed mb-4">
+                                برای ثبت سریع دانش‌آموزان کل مدرسه، ابتدا فایل نمونه اکسل را دانلود کنید، ستون‌های <strong>نام_و_نام_خانوادگی</strong>، <strong>پایه</strong> (چهارم، پنجم یا ششم)، <strong>نام_کاربری</strong> و <strong>رمز_عبور</strong> را تکمیل کرده و سپس فایل را آپلود نمایید.
+                            </p>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center bg-slate-50 p-4 rounded-2xl border border-dashed border-slate-300">
+                            <button type="button" onclick="downloadSampleExcel()" class="py-3 px-4 rounded-xl bg-white hover:bg-emerald-50 text-emerald-700 border-2 border-emerald-200 font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition shadow-sm">
+                                <i data-lucide="download" class="w-4 h-4"></i>
+                                <span>۱. دانلود فایل نمونه اکسل</span>
+                            </button>
+
+                            <label class="py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition shadow-md cursor-pointer text-center">
+                                <i data-lucide="upload" class="w-4 h-4"></i>
+                                <span>۲. انتخاب و آپلود فایل اکسل</span>
+                                <input type="file" id="excel-upload-input" accept=".xlsx, .xls" onchange="handleExcelUpload(event)" class="hidden">
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- لیست دانش‌آموزان -->
+                <div class="bg-white rounded-3xl p-6 shadow-md border border-slate-200">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                        <h3 class="text-base font-black text-slate-800">لیست دانش‌آموزان ثبت‌شده</h3>
+                        <div class="flex flex-wrap gap-2">
+                            <input type="text" id="admin-st-search" oninput="renderAdminStudentsTable()" placeholder="جستجوی نام یا نام کاربری..." class="px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:border-sky-500">
+                            <select id="admin-st-filter" onchange="renderAdminStudentsTable()" class="px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-bold outline-none bg-white">
+                                <option value="all">همه پایه‌ها</option>
+                                <option value="چهارم">پایه چهارم</option>
+                                <option value="پنجم">پایه پنجم</option>
+                                <option value="ششم">پایه ششم</option>
+                            </select>
+                            <button onclick="exportGradesExcel()" class="px-3.5 py-2 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 text-xs font-extrabold flex items-center gap-1">
+                                <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                                <span>خروجی اکسل نمرات</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-right border-collapse">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-600 text-xs font-extrabold">
+                                    <th class="p-3 rounded-r-xl">ردیف</th>
+                                    <th class="p-3">نام و نام خانوادگی</th>
+                                    <th class="p-3">پایه</th>
+                                    <th class="p-3">نام کاربری</th>
+                                    <th class="p-3">رمز عبور</th>
+                                    <th class="p-3 rounded-l-xl text-center">عملیات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-students-tbody" class="text-sm divide-y divide-slate-100">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- تب ۲: مدیریت معلمان و سطوح دسترسی -->
+            <div id="admin-panel-teachers" class="admin-subpanel hidden space-y-6">
+                <div class="bg-white rounded-3xl p-6 shadow-md border-2 border-purple-100">
+                    <h3 class="text-base font-black text-slate-800 mb-4 flex items-center gap-2">
+                        <span class="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center">👩‍🏫</span>
+                        تعریف معلم جدید و تخصیص دسترسی پایه‌ها و دروس
+                    </h3>
+
+                    <form onsubmit="saveTeacher(event)" class="space-y-5">
+                        <input type="hidden" id="edit-teacher-id" value="">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">نام و نام خانوادگی معلم</label>
+                                <input type="text" id="tc-form-name" required placeholder="مثلاً: خانم زهرا کریمی" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-purple-500 outline-none text-sm font-semibold">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">نام کاربری ورود معلم</label>
+                                <input type="text" id="tc-form-user" required placeholder="teacher4" dir="ltr" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-purple-500 outline-none text-sm font-semibold text-left">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">رمز عبور</label>
+                                <input type="text" id="tc-form-pass" required placeholder="1234" dir="ltr" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-purple-500 outline-none text-sm font-semibold text-left">
+                            </div>
+                        </div>
+
+                        <!-- ماتریس دسترسی پایه‌ها و دروس -->
+                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                                <span class="text-xs font-extrabold text-slate-700">تعیین دقیق پایه‌ها و دروسی که این معلم مجاز به نمره‌دهی است:</span>
+                                <div class="flex gap-2">
+                                    <button type="button" onclick="presetTeacherAccess('main4')" class="text-[11px] bg-sky-100 text-sky-700 px-2.5 py-1 rounded-lg font-bold hover:bg-sky-200">الگو: آموزگار اصلی چهارم</button>
+                                    <button type="button" onclick="presetTeacherAccess('art_sport_social')" class="text-[11px] bg-amber-100 text-amber-700 px-2.5 py-1 rounded-lg font-bold hover:bg-amber-200">الگو: معلم هنر/ورزش/اجتماعی هر ۳ پایه</button>
+                                </div>
+                            </div>
+                            <div id="teacher-permissions-matrix" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <!-- چک‌باکس‌های هر پایه و درس با JS ساخته می‌شوند -->
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3">
+                            <button type="submit" id="tc-form-submit-btn" class="py-3 px-6 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-sm shadow-md transition">
+                                ذخیره اطلاعات و دسترسی معلم
+                            </button>
+                            <button type="button" id="tc-form-cancel-btn" onclick="resetTeacherForm()" class="hidden py-3 px-5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-sm transition">
+                                انصراف از ویرایش
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- لیست معلمان فعلی -->
+                <div class="bg-white rounded-3xl p-6 shadow-md border border-slate-200">
+                    <h3 class="text-base font-black text-slate-800 mb-4">لیست معلمان و دسترسی‌های تعریف‌شده</h3>
+                    <div id="admin-teachers-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    </div>
+                </div>
+            </div>
+
+            <!-- تب ۳: مدیریت پایه‌ها و دروس -->
+            <div id="admin-panel-subjects" class="admin-subpanel hidden">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="admin-subjects-container">
+                    <!-- کارت‌های پایه چهارم، پنجم و ششم -->
+                </div>
+            </div>
+
+            <!-- تب ۴: تنظیمات و اتصال ابری (Firebase) -->
+            <div id="admin-panel-settings" class="admin-subpanel hidden space-y-6">
+                <div class="bg-white rounded-3xl p-6 shadow-md border-2 border-indigo-100">
+                    <h3 class="text-base font-black text-slate-800 mb-2 flex items-center gap-2">
+                        <span class="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">☁️</span>
+                        اتصال به پایگاه داده ابری Firebase Firestore (برای همگام‌سازی آنلاین بین گوشی‌ها)
+                    </h3>
+                    <p class="text-xs text-slate-600 leading-relaxed mb-4">
+                        در حالت پیش‌فرض، اطلاعات در حافظه مرورگر (LocalStorage) ذخیره می‌شوند. برای اینکه معلم‌ها از گوشی خود نمره ثبت کنند و دانش‌آموزان از خانه کارنامه را ببینند، پیکربندی پروژه رایگان Firebase خود را در کادر زیر وارد کنید:
+                    </p>
+                    <textarea id="firebase-config-input" rows="6" dir="ltr" placeholder='{
+  "apiKey": "AIzaSy...",
+  "authDomain": "elm-o-pouyesh.firebaseapp.com",
+  "projectId": "elm-o-pouyesh",
+  "storageBucket": "elm-o-pouyesh.appspot.com",
+  "messagingSenderId": "123456789",
+  "appId": "1:123456789:web:abcdef"
+}' class="w-full p-4 rounded-2xl border-2 border-slate-200 focus:border-indigo-500 font-mono text-xs text-left outline-none bg-slate-50 mb-4"></textarea>
+                    
+                    <div class="flex flex-wrap gap-3">
+                        <button onclick="saveFirebaseConfig()" class="py-3 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-sm shadow-md transition">
+                            ذخیره و اتصال به Firebase
+                        </button>
+                        <button onclick="disconnectFirebase()" class="py-3 px-5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition">
+                            قطع اتصال ابری (بازگشت به حافظه داخلی)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-3xl p-6 shadow-md border border-rose-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div>
+                        <h4 class="font-extrabold text-rose-700 text-sm">بازنشانی داده‌های آزمایشی</h4>
+                        <p class="text-xs text-slate-500 mt-1">بازگرداندن دانش‌آموزان، معلمان، دروس و نمرات پیش‌فرض مدرسه علم و پویش.</p>
+                    </div>
+                    <button onclick="confirmResetDemoData()" class="py-2.5 px-5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-extrabold text-xs transition">
+                        بازنشانی کامل به داده‌های نمونه
+                    </button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- فوتر ساده -->
+    <footer class="text-center py-6 text-xs text-slate-400 font-medium no-print">
+        ساخته‌شده با عشق برای دانش‌آموزان عزیز <strong class="text-slate-600">دبستان علم و پویش</strong> 🌱
+    </footer>
+
+    <script>
+        // =========================================================================
+        // ۱. تنظیمات اولیه، ثابت‌ها و ساختار داده‌های مدرسه علم و پویش
+        // =========================================================================
+        const GRADES = ['چهارم', 'پنجم', 'ششم'];
+        const MONTHS = ['مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند', 'فروردین', 'اردیبهشت', 'خرداد'];
+
+        // مقیاس ارزشیابی توصیفی استاندارد ابتدایی ایران
+        const SCALE_OPTIONS = [
+            {
+                code: 'خ.خ',
+                label: 'خیلی خوب',
+                stars: '⭐⭐⭐⭐',
+                badgeBg: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+                cardBorder: 'border-emerald-200 bg-emerald-50/40',
+                btnActive: 'bg-emerald-500 text-white border-emerald-600 shadow-md shadow-emerald-200'
+            },
+            {
+                code: 'خ',
+                label: 'خوب',
+                stars: '⭐⭐⭐',
+                badgeBg: 'bg-sky-100 text-sky-800 border-sky-300',
+                cardBorder: 'border-sky-200 bg-sky-50/40',
+                btnActive: 'bg-sky-500 text-white border-sky-600 shadow-md shadow-sky-200'
+            },
+            {
+                code: 'ق',
+                label: 'قابل قبول',
+                stars: '⭐⭐',
+                badgeBg: 'bg-amber-100 text-amber-800 border-amber-300',
+                cardBorder: 'border-amber-200 bg-amber-50/40',
+                btnActive: 'bg-amber-500 text-white border-amber-600 shadow-md shadow-amber-200'
+            },
+            {
+                code: 'ن',
+                label: 'نیاز به تلاش بیشتر',
+                stars: '🌱',
+                badgeBg: 'bg-rose-100 text-rose-800 border-rose-300',
+                cardBorder: 'border-rose-200 bg-rose-50/40',
+                btnActive: 'bg-rose-500 text-white border-rose-600 shadow-md shadow-rose-200'
+            }
+        ];
+
+        // آیکون‌های کودکانه برای دروس
+        const SUBJECT_ICONS = {
+            'قرآن': '📖',
+            'هدیه‌های آسمان': '🕌',
+            'فارسی': '✍️',
+            'نگارش': '📝',
+            'ریاضی': '🔢',
+            'علوم تجربی': '🔬',
+            'مطالعات اجتماعی': '🌍',
+            'تفکر و پژوهش': '💡',
+            'هنر': '🎨',
+            'تربیت بدنی': '⚽'
+        };
+
+        // داده‌های پیش‌فرض (برای اجرای فوری و تست آسان)
+        const DEFAULT_DATA = {
+            admin: { username: 'admin', password: '123', name: 'مدیریت دبستان علم و پویش' },
+            subjectsByGrade: {
+                'چهارم': ['قرآن', 'هدیه‌های آسمان', 'فارسی', 'نگارش', 'ریاضی', 'علوم تجربی', 'مطالعات اجتماعی', 'هنر', 'تربیت بدنی'],
+                'پنجم': ['قرآن', 'هدیه‌های آسمان', 'فارسی', 'نگارش', 'ریاضی', 'علوم تجربی', 'مطالعات اجتماعی', 'هنر', 'تربیت بدنی'],
+                'ششم': ['قرآن', 'هدیه‌های آسمان', 'فارسی', 'نگارش', 'ریاضی', 'علوم تجربی', 'مطالعات اجتماعی', 'تفکر و پژوهش', 'هنر', 'تربیت بدنی']
+            },
+            students: [
+                { id: 'st1', name: 'آرشام محمدی', grade: 'چهارم', username: '1001', password: '123' },
+                { id: 'st2', name: 'سارا حسینی', grade: 'چهارم', username: '1002', password: '123' },
+                { id: 'st3', name: 'پارسا کریمی', grade: 'پنجم', username: '2001', password: '123' },
+                { id: 'st4', name: 'زهرا احمدی', grade: 'پنجم', username: '2002', password: '123' },
+                { id: 'st5', name: 'امیرحسین رضایی', grade: 'ششم', username: '3001', password: '123' },
+                { id: 'st6', name: 'نازنین زهرا علوی', grade: 'ششم', username: '3002', password: '123' }
+            ],
+            teachers: [
+                {
+                    id: 'tc1',
+                    name: 'خانم مریم کاظمی (آموزگار چهارم)',
+                    username: 't4',
+                    password: '123',
+                    permissions: {
+                        'چهارم': ['قرآن', 'هدیه‌های آسمان', 'فارسی', 'نگارش', 'ریاضی', 'علوم تجربی']
+                    }
+                },
+                {
+                    id: 'tc2',
+                    name: 'آقای علی صادقی (آموزگار پنجم)',
+                    username: 't5',
+                    password: '123',
+                    permissions: {
+                        'پنجم': ['قرآن', 'هدیه‌های آسمان', 'فارسی', 'نگارش', 'ریاضی', 'علوم تجربی']
+                    }
+                },
+                {
+                    id: 'tc3',
+                    name: 'خانم سمیرا نوری (هنر، ورزش و اجتماعی)',
+                    username: 't_art',
+                    password: '123',
+                    permissions: {
+                        'چهارم': ['مطالعات اجتماعی', 'هنر', 'تربیت بدنی'],
+                        'پنجم': ['مطالعات اجتماعی', 'هنر', 'تربیت بدنی'],
+                        'ششم': ['مطالعات اجتماعی', 'هنر', 'تربیت بدنی']
+                    }
+                }
+            ],
+            // کلید نمرات: `${studentId}_${month}_${subject}`
+            grades: {
+                'st1_مهر_قرآن': { scale: 'خ.خ', comment: 'روان‌خوانی بسیار زیبا و با صوت دلنشین آفرین!' },
+                'st1_مهر_هدیه‌های آسمان': { scale: 'خ.خ', comment: 'مشارکت عالی در بحث‌های کلاسی' },
+                'st1_مهر_فارسی': { scale: 'خ.خ', comment: 'خواندن روان و درک مطلب فوق‌العاده' },
+                'st1_مهر_نگارش': { scale: 'خ', comment: 'خط زیبا و مرتب؛ کمی روی املای کلمات جدید تمرین شود.' },
+                'st1_مهر_ریاضی': { scale: 'خ.خ', comment: 'تسلط کامل بر الگوها و اعداد چهاررقمی 🌟' },
+                'st1_مهر_علوم تجربی': { scale: 'خ.خ', comment: 'کنجکاو و دقیق در انجام آزمایش‌ها' },
+                'st1_مهر_مطالعات اجتماعی': { scale: 'خ', comment: 'همکاری خوب در فعالیت‌های گروهی' },
+                'st1_مهر_هنر': { scale: 'خ.خ', comment: 'خلاقیت و رنگ‌آمیزی بسیار شاد و منظم 🎨' },
+                'st1_مهر_تربیت بدنی': { scale: 'خ.خ', comment: 'پرانرژی و با روحیه ورزشکاری عالی ⚽' },
+
+                'st1_آبان_ریاضی': { scale: 'خ.خ', comment: 'حل مسائل کسرها عالی بود!' },
+                'st1_آبان_فارسی': { scale: 'خ.خ', comment: 'انشانویسی بسیار خلاقانه' }
+            }
+        };
+
+        // وضعیت جاری برنامه
+        let appState = null;
+        let currentUser = null; // { role: 'student'|'teacher'|'admin', data: Object }
+        let selectedLoginRole = 'student';
+        let firestoreDb = null;
+        let isCloudMode = false;
+
+        // =========================================================================
+        // ۲. راه‌اندازی و مدیریت ذخیره‌سازی (LocalStorage + Firebase Firestore)
+        // =========================================================================
+        async function initApp() {
+            lucide.createIcons();
+            populateMonthDropdowns();
+
+            // بارگذاری اولیه از LocalStorage
+            const savedData = localStorage.getItem('elm_pouyesh_db_v1');
+            if (savedData) {
+                try {
+                    appState = JSON.parse(savedData);
+                } catch (e) {
+                    appState = JSON.parse(JSON.stringify(DEFAULT_DATA));
+                }
+            } else {
+                appState = JSON.parse(JSON.stringify(DEFAULT_DATA));
+                saveStateToLocal();
+            }
+
+            // بررسی اتصال Firebase در صورت تنظیم قبلی
+            const savedFbConfig = localStorage.getItem('elm_pouyesh_fb_config');
+            if (savedFbConfig) {
+                document.getElementById('firebase-config-input').value = savedFbConfig;
+                await connectToFirebase(savedFbConfig, true);
+            }
+
+            // بازیابی نشست کاربر در صورت رفرش صفحه
+            const savedSession = sessionStorage.getItem('elm_pouyesh_session');
+            if (savedSession) {
+                try {
+                    const session = JSON.parse(savedSession);
+                    restoreSession(session);
+                } catch (e) {
+                    sessionStorage.removeItem('elm_pouyesh_session');
+                }
+            }
+        }
+
+        function saveStateToLocal() {
+            localStorage.setItem('elm_pouyesh_db_v1', JSON.stringify(appState));
+        }
+
+        async function syncStateToCloud() {
+            saveStateToLocal();
+            if (isCloudMode && firestoreDb) {
+                try {
+                    await firestoreDb.collection('school_system').doc('main_data').set(appState);
+                } catch (err) {
+                    console.error('Firebase sync error:', err);
+                    showToast('خطا در همگام‌سازی ابری! تغییرات در حافظه دستگاه ذخیره شد.', 'error');
+                }
+            }
+        }
+
+        async function connectToFirebase(configStr, silent = false) {
+            try {
+                const configObj = JSON.parse(configStr);
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(configObj);
+                }
+                firestoreDb = firebase.firestore();
+                
+                // خواندن داده‌ها از کلود یا آپلود داده‌های اولیه
+                const docRef = firestoreDb.collection('school_system').doc('main_data');
+                const docSnap = await docRef.get();
+                if (docSnap.exists) {
+                    appState = docSnap.data();
+                    saveStateToLocal();
+                } else {
+                    await docRef.set(appState);
+                }
+
+                // گوش دادن به تغییرات زنده
+                docRef.onSnapshot((snap) => {
+                    if (snap.exists) {
+                        appState = snap.data();
+                        saveStateToLocal();
+                        if (currentUser) refreshCurrentView();
+                    }
+                });
+
+                isCloudMode = true;
+                const badge = document.getElementById('db-status-badge');
+                badge.textContent = 'متصل به فضای ابری آنلاین ☁️';
+                badge.className = 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700';
+                if (!silent) showToast('اتصال آنلاین به Firebase با موفقیت برقرار شد!', 'success');
+            } catch (error) {
+                console.error(error);
+                isCloudMode = false;
+                if (!silent) showToast('فرمت پیکربندی Firebase نامعتبر است یا اتصال برقرار نشد.', 'error');
+            }
+        }
+
+        function saveFirebaseConfig() {
+            const raw = document.getElementById('firebase-config-input').value.trim();
+            if (!raw) {
+                showToast('لطفاً کد پیکربندی JSON را وارد کنید.', 'error');
+                return;
+            }
+            localStorage.setItem('elm_pouyesh_fb_config', raw);
+            connectToFirebase(raw, false);
+        }
+
+        function disconnectFirebase() {
+            localStorage.removeItem('elm_pouyesh_fb_config');
+            isCloudMode = false;
+            const badge = document.getElementById('db-status-badge');
+            badge.textContent = 'حالت آزمایشی داخلی';
+            badge.className = 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700';
+            showToast('اتصال ابری قطع شد و برنامه در حالت حافظه داخلی قرار گرفت.', 'info');
+        }
+
+        // =========================================================================
+        // ۳. سیستم پیام‌های زیبا (Toast) و تاییدیه (Confirm Modal) بدون alert
+        // =========================================================================
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const styles = {
+                success: 'bg-emerald-600 text-white border-emerald-400',
+                error: 'bg-rose-600 text-white border-rose-400',
+                info: 'bg-sky-600 text-white border-sky-400'
+            };
+            const icons = {
+                success: '✅',
+                error: '⚠️',
+                info: 'ℹ️'
+            };
+
+            toast.className = `${styles[type] || styles.info} border-2 px-4 py-3 rounded-2xl shadow-xl font-bold text-sm flex items-center gap-2.5 pointer-events-auto transition-all duration-300 transform translate-y-0 opacity-100`;
+            toast.innerHTML = `<span class="text-lg">${icons[type]}</span><span>${message}</span>`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        function showConfirmModal(title, message, onConfirm) {
+            const modal = document.getElementById('confirm-modal');
+            document.getElementById('confirm-title').textContent = title;
+            document.getElementById('confirm-message').textContent = message;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            const okBtn = document.getElementById('confirm-ok-btn');
+            const cancelBtn = document.getElementById('confirm-cancel-btn');
+
+            const cleanup = () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                okBtn.onclick = null;
+                cancelBtn.onclick = null;
+            };
+
+            cancelBtn.onclick = cleanup;
+            okBtn.onclick = () => {
+                cleanup();
+                onConfirm();
+            };
+        }
+
+        // =========================================================================
+        // ۴. منطق ورود، خروج و انتخاب نقش
+        // =========================================================================
+        function selectLoginRole(role) {
+            selectedLoginRole = role;
+            document.querySelectorAll('.role-tab').forEach(btn => {
+                btn.className = 'role-tab py-2.5 px-2 rounded-xl font-bold text-xs sm:text-sm flex flex-col items-center gap-1 transition text-slate-600 hover:text-slate-900';
+            });
+
+            const activeBtn = document.getElementById(`tab-role-${role}`);
+            const label = document.getElementById('username-label');
+            const input = document.getElementById('login-username');
+            const submitBtn = document.getElementById('login-submit-btn');
+
+            if (role === 'student') {
+                activeBtn.className = 'role-tab py-2.5 px-2 rounded-xl font-extrabold text-xs sm:text-sm flex flex-col items-center gap-1 transition bg-white text-sky-600 shadow-sm';
+                label.textContent = 'نام کاربری (کد ملی دانش‌آموز)';
+                input.placeholder = 'مثلاً: 1001';
+                submitBtn.innerHTML = '<span>ورود به کارنامه من</span><i data-lucide="arrow-left" class="w-5 h-5"></i>';
+            } else if (role === 'teacher') {
+                activeBtn.className = 'role-tab py-2.5 px-2 rounded-xl font-extrabold text-xs sm:text-sm flex flex-col items-center gap-1 transition bg-white text-emerald-600 shadow-sm';
+                label.textContent = 'نام کاربری معلم';
+                input.placeholder = 'مثلاً: t4';
+                submitBtn.innerHTML = '<span>ورود به پنل ثبت نمره</span><i data-lucide="arrow-left" class="w-5 h-5"></i>';
+            } else {
+                activeBtn.className = 'role-tab py-2.5 px-2 rounded-xl font-extrabold text-xs sm:text-sm flex flex-col items-center gap-1 transition bg-white text-purple-600 shadow-sm';
+                label.textContent = 'نام کاربری مدیر سیستم';
+                input.placeholder = 'admin';
+                submitBtn.innerHTML = '<span>ورود به پنل مدیریت</span><i data-lucide="arrow-left" class="w-5 h-5"></i>';
+            }
+            lucide.createIcons();
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value.trim();
+
+            if (selectedLoginRole === 'student') {
+                const student = appState.students.find(s => s.username === username && s.password === password);
+                if (!student) {
+                    showToast('نام کاربری یا رمز عبور دانش‌آموز اشتباه است!', 'error');
+                    return;
+                }
+                loginSuccess('student', student);
+            } else if (selectedLoginRole === 'teacher') {
+                const teacher = appState.teachers.find(t => t.username === username && t.password === password);
+                if (!teacher) {
+                    showToast('نام کاربری یا رمز عبور معلم اشتباه است!', 'error');
+                    return;
+                }
+                loginSuccess('teacher', teacher);
+            } else if (selectedLoginRole === 'admin') {
+                if (username === appState.admin.username && password === appState.admin.password) {
+                    loginSuccess('admin', appState.admin);
+                } else {
+                    showToast('اطلاعات ورود مدیر صحیح نیست!', 'error');
+                }
+            }
+        }
+
+        function quickDemoLogin(role) {
+            selectLoginRole(role);
+            if (role === 'student') {
+                const demoSt = appState.students[0];
+                if (!demoSt) return showToast('دانش‌آموزی یافت نشد.', 'error');
+                loginSuccess('student', demoSt);
+            } else if (role === 'teacher') {
+                const demoTc = appState.teachers[0];
+                if (!demoTc) return showToast('معلمی یافت نشد.', 'error');
+                loginSuccess('teacher', demoTc);
+            } else {
+                loginSuccess('admin', appState.admin);
+            }
+        }
+
+        function loginSuccess(role, userData) {
+            currentUser = { role, data: userData };
+            sessionStorage.setItem('elm_pouyesh_session', JSON.stringify({ role, id: userData.id || 'admin' }));
+            showToast(`خوش آمدید ${userData.name}!`, 'success');
+            renderAppForUser();
+        }
+
+        function restoreSession(session) {
+            if (session.role === 'admin') {
+                currentUser = { role: 'admin', data: appState.admin };
+            } else if (session.role === 'student') {
+                const st = appState.students.find(s => s.id === session.id);
+                if (st) currentUser = { role: 'student', data: st };
+            } else if (session.role === 'teacher') {
+                const tc = appState.teachers.find(t => t.id === session.id);
+                if (tc) currentUser = { role: 'teacher', data: tc };
+            }
+            if (currentUser) renderAppForUser();
+        }
+
+        function logout() {
+            currentUser = null;
+            sessionStorage.removeItem('elm_pouyesh_session');
+            document.getElementById('login-username').value = '';
+            document.getElementById('login-password').value = '';
+            
+            document.getElementById('app-header').classList.add('hidden');
+            document.getElementById('student-view').classList.add('hidden');
+            document.getElementById('teacher-view').classList.add('hidden');
+            document.getElementById('admin-view').classList.add('hidden');
+            document.getElementById('login-view').classList.remove('hidden');
+        }
+
+        function renderAppForUser() {
+            document.getElementById('login-view').classList.add('hidden');
+            document.getElementById('app-header').classList.remove('hidden');
+            document.getElementById('student-view').classList.add('hidden');
+            document.getElementById('teacher-view').classList.add('hidden');
+            document.getElementById('admin-view').classList.add('hidden');
+
+            document.getElementById('header-user-name').textContent = currentUser.data.name;
+
+            if (currentUser.role === 'student') {
+                document.getElementById('user-role-icon').textContent = '🎒';
+                document.getElementById('header-user-role').textContent = `دانش‌آموز پایه ${currentUser.data.grade}`;
+                document.getElementById('student-view').classList.remove('hidden');
+                initStudentView();
+            } else if (currentUser.role === 'teacher') {
+                document.getElementById('user-role-icon').textContent = '👩‍🏫';
+                document.getElementById('header-user-role').textContent = 'معلم دبستان';
+                document.getElementById('teacher-view').classList.remove('hidden');
+                initTeacherView();
+            } else if (currentUser.role === 'admin') {
+                document.getElementById('user-role-icon').textContent = '🛡️';
+                document.getElementById('header-user-role').textContent = 'مدیر سامانه';
+                document.getElementById('admin-view').classList.remove('hidden');
+                initAdminView();
+            }
+            lucide.createIcons();
+        }
+
+        function refreshCurrentView() {
+            if (!currentUser) return;
+            if (currentUser.role === 'student') {
+                const updated = appState.students.find(s => s.id === currentUser.data.id);
+                if (updated) currentUser.data = updated;
+                renderStudentReport();
+            } else if (currentUser.role === 'teacher') {
+                const updated = appState.teachers.find(t => t.id === currentUser.data.id);
+                if (updated) currentUser.data = updated;
+                renderTeacherGradingTable();
+            } else if (currentUser.role === 'admin') {
+                updateAdminStats();
+                renderAdminStudentsTable();
+                renderAdminTeachersList();
+                renderAdminSubjectsCards();
+            }
+        }
+
+        function populateMonthDropdowns() {
+            const stSelect = document.getElementById('st-month-select');
+            const tcSelect = document.getElementById('tc-month-select');
+            const optionsHtml = MONTHS.map(m => `<option value="${m}">ماه ${m}</option>`).join('');
+            stSelect.innerHTML = optionsHtml;
+            tcSelect.innerHTML = optionsHtml;
+        }
+
+        // =========================================================================
+        // ۵. پنل دانش‌آموز و کارنامه کودک‌پسند
+        // =========================================================================
+        function initStudentView() {
+            const st = currentUser.data;
+            document.getElementById('st-welcome-name').textContent = st.name;
+            document.getElementById('st-grade-badge').textContent = `پایه ${st.grade}`;
+            document.getElementById('report-st-name').textContent = st.name;
+            document.getElementById('report-st-grade').textContent = `پایه ${st.grade}`;
+            renderStudentReport();
+        }
+
+        function renderStudentReport() {
+            const st = currentUser.data;
+            const month = document.getElementById('st-month-select').value;
+            document.getElementById('report-st-month').textContent = `${month} ماه`;
+
+            const subjects = appState.subjectsByGrade[st.grade] || [];
+            const grid = document.getElementById('student-grades-grid');
+            grid.innerHTML = '';
+
+            let veryGoodCount = 0;
+            let gradedCount = 0;
+
+            subjects.forEach(subject => {
+                const key = `${st.id}_${month}_${subject}`;
+                const record = appState.grades[key];
+                const icon = SUBJECT_ICONS[subject] || '📘';
+
+                let scaleObj = null;
+                if (record && record.scale) {
+                    scaleObj = SCALE_OPTIONS.find(o => o.code === record.scale);
+                    gradedCount++;
+                    if (record.scale === 'خ.خ') veryGoodCount++;
+                }
+
+                const card = document.createElement('div');
+                card.className = `card-kid grade-card-print p-4 sm:p-5 border-2 ${scaleObj ? scaleObj.cardBorder : 'border-slate-200 bg-slate-50/60'} flex flex-col justify-between gap-3`;
+                
+                card.innerHTML = `
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-2xl border border-slate-100">
+                                ${icon}
+                            </div>
+                            <div>
+                                <h4 class="font-black text-slate-800 text-base">${subject}</h4>
+                                <span class="text-xs text-slate-500 font-semibold">${scaleObj ? scaleObj.stars : 'در انتظار ثبت معلم'}</span>
+                            </div>
+                        </div>
+                        <div>
+                            ${scaleObj 
+                                ? `<span class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl border text-xs sm:text-sm font-black ${scaleObj.badgeBg}">
+                                    <span>${scaleObj.label}</span>
+                                    <span class="opacity-75 text-[11px]">(${scaleObj.code})</span>
+                                   </span>`
+                                : `<span class="inline-block px-3 py-1.5 rounded-2xl bg-slate-200/70 text-slate-500 text-xs font-bold">ثبت نشده</span>`
+                            }
+                        </div>
+                    </div>
+                    <div class="bg-white/80 rounded-xl p-3 border border-slate-200/60 text-xs sm:text-sm text-slate-700">
+                        <span class="font-bold text-slate-400 ml-1">💬 نظر معلم:</span>
+                        <span class="font-medium">${record && record.comment ? record.comment : 'هنوز توضیحی برای این ماه ثبت نشده است.'}</span>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+
+            // به‌روزرسانی پیام تشویقی پایین کارنامه
+            const summaryText = document.getElementById('student-summary-text');
+            if (gradedCount === 0) {
+                summaryText.textContent = `${st.name} عزیز، نمرات ${month} ماه هنوز توسط معلمان گرامی وارد نشده است.`;
+            } else if (veryGoodCount === gradedCount) {
+                summaryText.textContent = `فوق‌العاده است ${st.name} جان! در تمام دروس ارزشیابی‌شده این ماه «خیلی خوب» شدی. تو یک ستاره درخشان در دبستان علم و پویش هستی! 🌟🎉`;
+            } else {
+                summaryText.textContent = `${st.name} عزیز، از تلاش‌های قشنگت در ${month} ماه سپاسگزاریم. با مطالعه و تمرین بیشتر، ماه آینده هم بدرخشی! 🚀`;
+            }
+        }
+
+        // =========================================================================
+        // ۶. پنل معلم و ثبت سریع نمره توصیفی
+        // =========================================================================
+        function initTeacherView() {
+            const teacher = currentUser.data;
+            document.getElementById('tc-welcome-name').textContent = teacher.name;
+
+            const gradeSelect = document.getElementById('tc-grade-select');
+            const allowedGrades = Object.keys(teacher.permissions || {}).filter(g => (teacher.permissions[g] || []).length > 0);
+
+            if (allowedGrades.length === 0) {
+                gradeSelect.innerHTML = '<option value="">دسترسی تعریف نشده است</option>';
+                document.getElementById('tc-subject-select').innerHTML = '';
+                document.getElementById('tc-students-list').innerHTML = `
+                    <div class="text-center py-10 text-slate-500 font-bold">
+                        هنوز هیچ پایه یا درسی توسط مدیر برای شما تعریف نشده است.
+                    </div>
+                `;
+                return;
+            }
+
+            gradeSelect.innerHTML = allowedGrades.map(g => `<option value="${g}">پایه ${g}</option>`).join('');
+            onTeacherGradeChange();
+        }
+
+        function onTeacherGradeChange() {
+            const teacher = currentUser.data;
+            const selectedGrade = document.getElementById('tc-grade-select').value;
+            const subjectSelect = document.getElementById('tc-subject-select');
+
+            // فیلتر کردن دروس مجاز معلم بر اساس دروس موجود در آن پایه
+            const gradeSubjects = appState.subjectsByGrade[selectedGrade] || [];
+            const allowedSubjects = (teacher.permissions[selectedGrade] || []).filter(s => gradeSubjects.includes(s));
+
+            subjectSelect.innerHTML = allowedSubjects.map(s => `<option value="${s}">${SUBJECT_ICONS[s] || '📘'} ${s}</option>`).join('');
+            renderTeacherGradingTable();
+        }
+
+        function renderTeacherGradingTable() {
+            const grade = document.getElementById('tc-grade-select').value;
+            const subject = document.getElementById('tc-subject-select').value;
+            const month = document.getElementById('tc-month-select').value;
+            const container = document.getElementById('tc-students-list');
+
+            if (!grade || !subject) {
+                container.innerHTML = '';
+                return;
+            }
+
+            document.getElementById('tc-grading-title').textContent = `ثبت نمره درس «${subject}» - پایه ${grade} (${month} ماه)`;
+
+            const students = appState.students.filter(s => s.grade === grade);
+            if (students.length === 0) {
+                container.innerHTML = `<div class="text-center py-8 text-slate-400 font-bold">هیچ دانش‌آموزی در پایه ${grade} ثبت نشده است.</div>`;
+                return;
+            }
+
+            container.innerHTML = '';
+            students.forEach((st, idx) => {
+                const key = `${st.id}_${month}_${subject}`;
+                const existing = appState.grades[key] || { scale: '', comment: '' };
+
+                const row = document.createElement('div');
+                row.className = 'p-4 rounded-2xl border-2 border-slate-200/80 bg-slate-50/50 hover:bg-white transition space-y-3';
+                row.dataset.studentId = st.id;
+
+                // ساخت دکمه‌های انتخاب سریع خ.خ، خ، ق، ن
+                const scaleButtonsHtml = SCALE_OPTIONS.map(opt => {
+                    const isSelected = existing.scale === opt.code;
+                    return `
+                        <button type="button" 
+                            onclick="selectStudentScale('${st.id}', '${opt.code}', this)"
+                            data-scale="${opt.code}"
+                            class="scale-btn-${st.id} py-2 px-3 rounded-xl border-2 text-xs font-extrabold transition flex items-center gap-1 ${isSelected ? opt.btnActive : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}">
+                            <span>${opt.label}</span>
+                            <span class="opacity-75">(${opt.code})</span>
+                        </button>
+                    `;
+                }).join('');
+
+                row.innerHTML = `
+                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 font-black text-xs flex items-center justify-center">${idx + 1}</span>
+                            <div>
+                                <div class="font-extrabold text-slate-800 text-sm sm:text-base">${st.name}</div>
+                                <div class="text-[11px] text-slate-400">کد دانش‌آموزی: ${st.username}</div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap gap-2" id="scale-group-${st.id}" data-selected-scale="${existing.scale}">
+                            ${scaleButtonsHtml}
+                        </div>
+                    </div>
+
+                    <div>
+                        <input type="text" id="comment-input-${st.id}" value="${existing.comment.replace(/"/g, '&quot;')}" 
+                            placeholder="توضیحات توصیفی و پیام تشویقی برای ${st.name} (اختیاری)..." 
+                            class="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:border-emerald-400 bg-white text-xs sm:text-sm font-medium outline-none">
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function selectStudentScale(studentId, scaleCode, btnEl) {
+            const group = document.getElementById(`scale-group-${studentId}`);
+            // امکان لغو انتخاب با کلیک مجدد
+            const current = group.dataset.selectedScale;
+            const newScale = current === scaleCode ? '' : scaleCode;
+            group.dataset.selectedScale = newScale;
+
+            document.querySelectorAll(`.scale-btn-${studentId}`).forEach(btn => {
+                const code = btn.dataset.scale;
+                const opt = SCALE_OPTIONS.find(o => o.code === code);
+                if (code === newScale) {
+                    btn.className = `scale-btn-${studentId} py-2 px-3 rounded-xl border-2 text-xs font-extrabold transition flex items-center gap-1 ${opt.btnActive}`;
+                } else {
+                    btn.className = `scale-btn-${studentId} py-2 px-3 rounded-xl border-2 text-xs font-extrabold transition flex items-center gap-1 bg-white text-slate-600 border-slate-200 hover:border-slate-300`;
+                }
+            });
+        }
+
+        async function saveAllTeacherGrades() {
+            const grade = document.getElementById('tc-grade-select').value;
+            const subject = document.getElementById('tc-subject-select').value;
+            const month = document.getElementById('tc-month-select').value;
+
+            const students = appState.students.filter(s => s.grade === grade);
+            let updatedCount = 0;
+
+            students.forEach(st => {
+                const group = document.getElementById(`scale-group-${st.id}`);
+                const commentInput = document.getElementById(`comment-input-${st.id}`);
+                if (!group || !commentInput) return;
+
+                const scale = group.dataset.selectedScale;
+                const comment = commentInput.value.trim();
+                const key = `${st.id}_${month}_${subject}`;
+
+                if (scale || comment) {
+                    appState.grades[key] = { scale, comment };
+                    updatedCount++;
+                } else {
+                    delete appState.grades[key];
+                }
+            });
+
+            await syncStateToCloud();
+            showToast(`نمرات درس «${subject}» برای ${updatedCount} دانش‌آموز با موفقیت ذخیره شد!`, 'success');
+        }
+
+        // =========================================================================
+        // ۷. پنل مدیریت / ادمین (دانش‌آموزان، اکسل، معلمان و دروس)
+        // =========================================================================
+        function initAdminView() {
+            updateAdminStats();
+            renderAdminStudentsTable();
+            renderTeacherPermissionsMatrix();
+            renderAdminTeachersList();
+            renderAdminSubjectsCards();
+        }
+
+        function updateAdminStats() {
+            document.getElementById('stat-total-students').textContent = appState.students.length;
+            document.getElementById('stat-total-teachers').textContent = appState.teachers.length;
+            document.getElementById('stat-total-grades').textContent = Object.keys(appState.grades || {}).length;
+        }
+
+        function switchAdminTab(tabName) {
+            document.querySelectorAll('.admin-nav-btn').forEach(btn => {
+                btn.className = 'admin-nav-btn flex-1 py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-slate-600 hover:bg-slate-100 transition flex items-center justify-center gap-2';
+            });
+            document.getElementById(`admin-tab-${tabName}`).className = 'admin-nav-btn flex-1 py-3 px-4 rounded-xl font-extrabold text-xs sm:text-sm bg-sky-500 text-white shadow-sm transition flex items-center justify-center gap-2';
+
+            document.querySelectorAll('.admin-subpanel').forEach(panel => panel.classList.add('hidden'));
+            document.getElementById(`admin-panel-${tabName}`).classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        // --- مدیریت دانش‌آموزان ---
+        async function addSingleStudent(e) {
+            e.preventDefault();
+            const name = document.getElementById('new-st-name').value.trim();
+            const grade = document.getElementById('new-st-grade').value;
+            const username = document.getElementById('new-st-user').value.trim();
+            const password = document.getElementById('new-st-pass').value.trim();
+
+            if (appState.students.some(s => s.username === username)) {
+                showToast('این نام کاربری قبلاً برای دانش‌آموز دیگری ثبت شده است!', 'error');
+                return;
+            }
+
+            appState.students.push({
+                id: 'st_' + Date.now(),
+                name,
+                grade,
+                username,
+                password
+            });
+
+            await syncStateToCloud();
+            e.target.reset();
+            updateAdminStats();
+            renderAdminStudentsTable();
+            showToast(`دانش‌آموز «${name}» به پایه ${grade} اضافه شد.`, 'success');
+        }
+
+        function renderAdminStudentsTable() {
+            const search = document.getElementById('admin-st-search').value.trim().toLowerCase();
+            const filterGrade = document.getElementById('admin-st-filter').value;
+            const tbody = document.getElementById('admin-students-tbody');
+
+            const filtered = appState.students.filter(st => {
+                const matchGrade = filterGrade === 'all' || st.grade === filterGrade;
+                const matchSearch = st.name.toLowerCase().includes(search) || st.username.toLowerCase().includes(search);
+                return matchGrade && matchSearch;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400 font-bold">دانش‌آموزی یافت نشد.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map((st, index) => `
+                <tr class="hover:bg-slate-50 transition">
+                    <td class="p-3 font-bold text-slate-500">${index + 1}</td>
+                    <td class="p-3 font-extrabold text-slate-800">${st.name}</td>
+                    <td class="p-3"><span class="px-2.5 py-1 rounded-lg bg-sky-50 text-sky-700 text-xs font-bold">پایه ${st.grade}</span></td>
+                    <td class="p-3 font-mono text-xs font-bold text-slate-600">${st.username}</td>
+                    <td class="p-3 font-mono text-xs text-slate-500">${st.password}</td>
+                    <td class="p-3 text-center">
+                        <button onclick="deleteStudent('${st.id}', '${st.name}')" class="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 transition" title="حذف دانش‌آموز">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function deleteStudent(id, name) {
+            showConfirmModal('حذف دانش‌آموز', `آیا از حذف «${name}» اطمینان دارید؟`, async () => {
+                appState.students = appState.students.filter(s => s.id !== id);
+                await syncStateToCloud();
+                updateAdminStats();
+                renderAdminStudentsTable();
+                showToast('دانش‌آموز حذف شد.', 'info');
+            });
+        }
+
+        // --- ورود و خروجی اکسل (SheetJS) ---
+        function downloadSampleExcel() {
+            const sampleRows = [
+                { 'نام_و_نام_خانوادگی': 'محمدطاها حسینی', 'پایه': 'چهارم', 'نام_کاربری': '1010', 'رمز_عبور': '1234' },
+                { 'نام_و_نام_خانوادگی': 'فاطمه زهرا جعفری', 'پایه': 'پنجم', 'نام_کاربری': '2010', 'رمز_عبور': '1234' },
+                { 'نام_و_نام_خانوادگی': 'امیرمهدی سلیمانی', 'پایه': 'ششم', 'نام_کاربری': '3010', 'رمز_عبور': '1234' }
+            ];
+            const ws = XLSX.utils.json_to_sheet(sampleRows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'دانش_آموزان');
+            XLSX.writeFile(wb, 'نمونه_ثبت_دانش_آموزان_علم_و_پویش.xlsx');
+        }
+
+        function handleExcelUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const rows = XLSX.utils.sheet_to_json(sheet);
+
+                    let addedCount = 0;
+                    rows.forEach((row, idx) => {
+                        const name = String(row['نام_و_نام_خانوادگی'] || row['نام'] || '').trim();
+                        let grade = String(row['پایه'] || '').trim();
+                        const username = String(row['نام_کاربری'] || row['کد_ملی'] || '').trim();
+                        const password = String(row['رمز_عبور'] || '123').trim();
+
+                        // نرمال‌سازی نام پایه
+                        if (grade.includes('چهارم') || grade === '4') grade = 'چهارم';
+                        else if (grade.includes('پنجم') || grade === '5') grade = 'پنجم';
+                        else if (grade.includes('ششم') || grade === '6') grade = 'ششم';
+
+                        if (name && GRADES.includes(grade) && username) {
+                            if (!appState.students.some(s => s.username === username)) {
+                                appState.students.push({
+                                    id: `st_xl_${Date.now()}_${idx}`,
+                                    name,
+                                    grade,
+                                    username,
+                                    password
+                                });
+                                addedCount++;
+                            }
+                        }
+                    });
+
+                    await syncStateToCloud();
+                    updateAdminStats();
+                    renderAdminStudentsTable();
+                    showToast(`${addedCount} دانش‌آموز جدید از فایل اکسل با موفقیت وارد شدند!`, 'success');
+                } catch (err) {
+                    console.error(err);
+                    showToast('خطا در خواندن فایل اکسل! لطفاً از فایل نمونه استفاده کنید.', 'error');
+                }
+                event.target.value = '';
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function exportGradesExcel() {
+            const exportRows = [];
+            appState.students.forEach(st => {
+                const subjects = appState.subjectsByGrade[st.grade] || [];
+                MONTHS.forEach(month => {
+                    subjects.forEach(sub => {
+                        const key = `${st.id}_${month}_${sub}`;
+                        const g = appState.grades[key];
+                        if (g && g.scale) {
+                            exportRows.push({
+                                'نام_دانش_آموز': st.name,
+                                'پایه': st.grade,
+                                'ماه': month,
+                                'درس': sub,
+                                'نتیجه_ارزشیابی': g.scale,
+                                'توضیحات_معلم': g.comment || ''
+                            });
+                        }
+                    });
+                });
+            });
+
+            if (exportRows.length === 0) {
+                showToast('هنوز هیچ نمره‌ای برای خروجی اکسل ثبت نشده است.', 'info');
+                return;
+            }
+
+            const ws = XLSX.utils.json_to_sheet(exportRows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'کارنامه_ها');
+            XLSX.writeFile(wb, 'گزارش_نمرات_دبستان_علم_و_پویش.xlsx');
+        }
+
+        // --- مدیریت معلمان و ماتریس دسترسی ---
+        function renderTeacherPermissionsMatrix(selectedPermissions = {}) {
+            const container = document.getElementById('teacher-permissions-matrix');
+            container.innerHTML = GRADES.map(grade => {
+                const subjects = appState.subjectsByGrade[grade] || [];
+                const allowed = selectedPermissions[grade] || [];
+
+                const checkboxes = subjects.map(sub => {
+                    const checked = allowed.includes(sub) ? 'checked' : '';
+                    return `
+                        <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-100 p-1.5 rounded-lg">
+                            <input type="checkbox" name="perm_${grade}" value="${sub}" ${checked} class="w-4 h-4 rounded text-purple-600 focus:ring-purple-500">
+                            <span>${SUBJECT_ICONS[sub] || '📘'} ${sub}</span>
+                        </label>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="bg-white p-3.5 rounded-2xl border border-slate-200">
+                        <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+                            <span class="font-black text-sm text-purple-700">پایه ${grade}</span>
+                            <button type="button" onclick="toggleAllGradeCheckboxes('${grade}')" class="text-[11px] text-slate-500 hover:text-purple-600 font-bold">انتخاب همه</button>
+                        </div>
+                        <div class="space-y-1 max-h-48 overflow-y-auto">
+                            ${checkboxes}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function toggleAllGradeCheckboxes(grade) {
+            const boxes = document.querySelectorAll(`input[name="perm_${grade}"]`);
+            const allChecked = Array.from(boxes).every(b => b.checked);
+            boxes.forEach(b => b.checked = !allChecked);
+        }
+
+        function presetTeacherAccess(type) {
+            GRADES.forEach(g => {
+                document.querySelectorAll(`input[name="perm_${g}"]`).forEach(b => b.checked = false);
+            });
+
+            if (type === 'main4') {
+                const exclude = ['هنر', 'تربیت بدنی', 'مطالعات اجتماعی'];
+                document.querySelectorAll(`input[name="perm_چهارم"]`).forEach(b => {
+                    if (!exclude.includes(b.value)) b.checked = true;
+                });
+            } else if (type === 'art_sport_social') {
+                const include = ['هنر', 'تربیت بدنی', 'مطالعات اجتماعی'];
+                GRADES.forEach(g => {
+                    document.querySelectorAll(`input[name="perm_${g}"]`).forEach(b => {
+                        if (include.includes(b.value)) b.checked = true;
+                    });
+                });
+            }
+        }
+
+        async function saveTeacher(e) {
+            e.preventDefault();
+            const editId = document.getElementById('edit-teacher-id').value;
+            const name = document.getElementById('tc-form-name').value.trim();
+            const username = document.getElementById('tc-form-user').value.trim();
+            const password = document.getElementById('tc-form-pass').value.trim();
+
+            // جمع‌آوری دسترسی‌ها
+            const permissions = {};
+            GRADES.forEach(grade => {
+                const checked = Array.from(document.querySelectorAll(`input[name="perm_${grade}"]:checked`)).map(cb => cb.value);
+                if (checked.length > 0) permissions[grade] = checked;
+            });
+
+            if (editId) {
+                const idx = appState.teachers.findIndex(t => t.id === editId);
+                if (idx !== -1) {
+                    appState.teachers[idx] = { id: editId, name, username, password, permissions };
+                }
+                showToast('اطلاعات و دسترسی معلم به‌روزرسانی شد.', 'success');
+            } else {
+                if (appState.teachers.some(t => t.username === username)) {
+                    showToast('این نام کاربری قبلاً برای معلم دیگری ثبت شده است!', 'error');
+                    return;
+                }
+                appState.teachers.push({
+                    id: 'tc_' + Date.now(),
+                    name,
+                    username,
+                    password,
+                    permissions
+                });
+                showToast(`معلم «${name}» با موفقیت ثبت شد.`, 'success');
+            }
+
+            await syncStateToCloud();
+            resetTeacherForm();
+            updateAdminStats();
+            renderAdminTeachersList();
+        }
+
+        function editTeacher(id) {
+            const tc = appState.teachers.find(t => t.id === id);
+            if (!tc) return;
+
+            document.getElementById('edit-teacher-id').value = tc.id;
+            document.getElementById('tc-form-name').value = tc.name;
+            document.getElementById('tc-form-user').value = tc.username;
+            document.getElementById('tc-form-pass').value = tc.password;
+            document.getElementById('tc-form-submit-btn').textContent = 'ذخیره تغییرات معلم';
+            document.getElementById('tc-form-cancel-btn').classList.remove('hidden');
+
+            renderTeacherPermissionsMatrix(tc.permissions || {});
+            document.getElementById('admin-panel-teachers').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function resetTeacherForm() {
+            document.getElementById('edit-teacher-id').value = '';
+            document.getElementById('tc-form-name').value = '';
+            document.getElementById('tc-form-user').value = '';
+            document.getElementById('tc-form-pass').value = '';
+            document.getElementById('tc-form-submit-btn').textContent = 'ذخیره اطلاعات و دسترسی معلم';
+            document.getElementById('tc-form-cancel-btn').classList.add('hidden');
+            renderTeacherPermissionsMatrix({});
+        }
+
+        function renderAdminTeachersList() {
+            const container = document.getElementById('admin-teachers-list');
+            if (appState.teachers.length === 0) {
+                container.innerHTML = '<div class="text-slate-400 text-sm font-bold">هنوز معلمی تعریف نشده است.</div>';
+                return;
+            }
+
+            container.innerHTML = appState.teachers.map(tc => {
+                const permSummary = Object.entries(tc.permissions || {}).map(([grade, subs]) => {
+                    return `<div class="text-xs bg-slate-100 rounded-xl p-2 mt-1.5">
+                        <strong class="text-purple-700">پایه ${grade}:</strong> 
+                        <span class="text-slate-600">${subs.join('، ')}</span>
+                    </div>`;
+                }).join('') || '<div class="text-xs text-rose-500 mt-1">بدون دسترسی تعریف‌شده</div>';
+
+                return `
+                    <div class="p-4 rounded-2xl border-2 border-slate-100 bg-slate-50/40 flex flex-col justify-between gap-3">
+                        <div>
+                            <div class="flex items-center justify-between">
+                                <h4 class="font-extrabold text-slate-800 text-sm">${tc.name}</h4>
+                                <div class="flex gap-1.5">
+                                    <button onclick="editTeacher('${tc.id}')" class="p-1.5 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-200" title="ویرایش دسترسی">
+                                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                    </button>
+                                    <button onclick="deleteTeacher('${tc.id}', '${tc.name}')" class="p-1.5 rounded-lg bg-rose-100 text-rose-600 hover:bg-rose-200" title="حذف معلم">
+                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="text-[11px] text-slate-500 font-mono mt-0.5">نام کاربری: ${tc.username} | رمز: ${tc.password}</div>
+                            <div class="mt-2">${permSummary}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        function deleteTeacher(id, name) {
+            showConfirmModal('حذف معلم', `آیا از حذف «${name}» اطمینان دارید؟`, async () => {
+                appState.teachers = appState.teachers.filter(t => t.id !== id);
+                await syncStateToCloud();
+                updateAdminStats();
+                renderAdminTeachersList();
+                showToast('معلم حذف شد.', 'info');
+            });
+        }
+
+        // --- مدیریت پایه‌ها و دروس ---
+        function renderAdminSubjectsCards() {
+            const container = document.getElementById('admin-subjects-container');
+            container.innerHTML = GRADES.map(grade => {
+                const subjects = appState.subjectsByGrade[grade] || [];
+                const listHtml = subjects.map(sub => `
+                    <div class="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl border border-slate-200/70">
+                        <span class="text-xs font-bold text-slate-700">${SUBJECT_ICONS[sub] || '📘'} ${sub}</span>
+                        <button onclick="removeSubjectFromGrade('${grade}', '${sub}')" class="text-rose-400 hover:text-rose-600 p-1" title="حذف درس">
+                            <i data-lucide="x-circle" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                `).join('');
+
+                return `
+                    <div class="bg-white rounded-3xl p-5 shadow-md border-2 border-amber-100 flex flex-col justify-between gap-4">
+                        <div>
+                            <h3 class="text-base font-black text-slate-800 mb-3 flex items-center justify-between">
+                                <span>📚 دروس پایه ${grade}</span>
+                                <span class="text-xs bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full">${subjects.length} درس</span>
+                            </h3>
+                            <div class="space-y-2 max-h-72 overflow-y-auto pl-1">
+                                ${listHtml}
+                            </div>
+                        </div>
+
+                        <form onsubmit="addSubjectToGrade(event, '${grade}')" class="flex gap-2 pt-3 border-t border-slate-100">
+                            <input type="text" id="new-sub-${grade}" required placeholder="نام درس جدید..." class="flex-1 px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:border-amber-500">
+                            <button type="submit" class="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs transition">
+                                افزودن
+                            </button>
+                        </form>
+                    </div>
+                `;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        async function addSubjectToGrade(e, grade) {
+            e.preventDefault();
+            const input = document.getElementById(`new-sub-${grade}`);
+            const subName = input.value.trim();
+            if (!subName) return;
+
+            if (!appState.subjectsByGrade[grade]) appState.subjectsByGrade[grade] = [];
+            if (appState.subjectsByGrade[grade].includes(subName)) {
+                showToast('این درس قبلاً در این پایه وجود دارد.', 'error');
+                return;
+            }
+
+            appState.subjectsByGrade[grade].push(subName);
+            await syncStateToCloud();
+            input.value = '';
+            renderAdminSubjectsCards();
+            renderTeacherPermissionsMatrix();
+            showToast(`درس «${subName}» به پایه ${grade} اضافه شد.`, 'success');
+        }
+
+        function removeSubjectFromGrade(grade, subName) {
+            showConfirmModal('حذف درس', `آیا درس «${subName}» از پایه ${grade} حذف شود؟`, async () => {
+                appState.subjectsByGrade[grade] = appState.subjectsByGrade[grade].filter(s => s !== subName);
+                await syncStateToCloud();
+                renderAdminSubjectsCards();
+                renderTeacherPermissionsMatrix();
+                showToast('درس حذف شد.', 'info');
+            });
+        }
+
+        function confirmResetDemoData() {
+            showConfirmModal('بازنشانی اطلاعات', 'تمام تغییرات شما پاک شده و داده‌های نمونه اولیه مدرسه علم و پویش بازگردانده می‌شود.', async () => {
+                appState = JSON.parse(JSON.stringify(DEFAULT_DATA));
+                await syncStateToCloud();
+                initAdminView();
+                showToast('داده‌های نمونه با موفقیت بازنشانی شدند.', 'success');
+            });
+        }
+
+        // شروع برنامه پس از بارگذاری کامل صفحه
+        window.onload = initApp;
+    </script>
+</body>
+</html>
